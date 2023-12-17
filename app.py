@@ -2,12 +2,13 @@ import streamlit as st
 import numpy as np
 from transformers import BertTokenizer, BertForSequenceClassification
 import torch
+import os
 
 # Gunakan st.cache_data alih-alih st.cache
 @st.cache_data
 def load_model():
     tokenizer = BertTokenizer.from_pretrained('indobenchmark/indobert-base-p1')
-    model = BertForSequenceClassification.from_pretrained('sidaus/hatespeech-commentnews')
+    model = BertForSequenceClassification.from_pretrained('sidaus/hatespeech-commentnews',token=st.secrets["token"])
     return tokenizer, model
 
 # Fungsi untuk melakukan analisis teks
