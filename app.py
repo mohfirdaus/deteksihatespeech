@@ -5,10 +5,10 @@ import torch
 import os
 
 # Gunakan st.cache_data alih-alih st.cache
-@st.cache_data
+@st.cache(allow_output_mutation=True)
 def load_model():
     tokenizer = BertTokenizer.from_pretrained('indobenchmark/indobert-base-p1')
-    model = BertForSequenceClassification.from_pretrained('sidaus/hatespeech-commentnews',token=st.secrets["token"])
+    model = BertForSequenceClassification.from_pretrained('sidaus/hatespeech-commentnews', st.secrets["token"])
     return tokenizer, model
 
 # Fungsi untuk melakukan analisis teks
