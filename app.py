@@ -1,19 +1,17 @@
 import streamlit as st
 import requests
+from retrying import retry
 
 API_URL = "https://api-inference.huggingface.co/models/sidaus/hatespeech-commentnews"
 headers = {"Authorization": st.secrets["token"]}
 
-def query(payload):
-    try:
-        response = requests.post(API_URL, headers=headers, json=payload)
-        response.raise_for_status()  # Membuang HTTPError untuk respon yang buruk
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        st.error(f"Kesalahan saat terhubung ke API: {e}")
-        return None
+@retry(stop_max_attempt_number=3, wait_fixed=5000)  # Retry 3 kali, setiap retry setelah 5 detik
+def query_with_retry(payload):
+    response = requests.post(API_URL, headers=headers, json=payload, timeout=30)
+    response.raise_for_status()  # Raise HTTPError for bad responses
+    return response.json()
 
-# Menetapkan judul halaman dan favicon
+# Set page title and favicon
 st.set_page_config(
     page_title="Aplikasi Deteksi Ujaran Kebencian",
     page_icon=":angry:",  # Anda dapat menggantinya dengan emoji pilihan Anda
@@ -34,11 +32,10 @@ if st.button("Analisis"):
         st.warning("Mohon masukkan teks sebelum melakukan analisis.")
     else:
         with st.spinner("Menganalisis..."):  # Menggunakan st.spinner sebagai pengelola konteks
-            # Melakukan analisis
-            payload = {"inputs": input_text}
-            result = query(payload)
+            try:
+                # Melakukan analisis dengan mekanisme pengulangan dan waktu tunggu
+                result = query_with_retry({"inputs": input_text})
 
-            if result is not None:
                 # Memeriksa apakah hasilnya adalah list dengan setidaknya satu elemen
                 if isinstance(result, list) and result and isinstance(result[0], list):
                     # Memeriksa apakah list dalamnya memiliki setidaknya satu kamus
@@ -57,10 +54,9 @@ if st.button("Analisis"):
                         st.error("Kesalahan: Tidak dapat mendapatkan prediksi dari model. Harap periksa respons API.")
                 else:
                     st.error("Kesalahan: Tidak dapat mendapatkan prediksi dari model. Harap periksa respons API.")
-
-# Menambahkan informasi kontak
-st.markdown(
-    """
-    *Model HF ini bersifat privat. Untuk informasi lebih lanjut atau mengakses model, hubungi [us](mailto:sidaus@proton.me)*
-    """
-)
+            except requests.exceptions.HTTPError as e:
+                st.error(f"Kesalahan HTTP: {e}")
+                st.error("Model mungkin sedang memuat atau layanan tidak tersedia. Silakan coba lagi nanti.")
+            except Exception as e:
+                st.error(f"Kesalahan: {e}")
+                st.error("Terjadi kesalahan saat melakukan analisis. Silakan coba lagi.")
