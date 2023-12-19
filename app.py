@@ -1,18 +1,30 @@
-import subprocess
-subprocess.run(["pipenv", "install", "--deploy", "--ignore-pipfile"])
-
 import streamlit as st
 import requests
-from retrying import retry
+import time
 
 API_URL = "https://api-inference.huggingface.co/models/sidaus/hatespeech-commentnews"
 headers = {"Authorization": st.secrets["token"]}
 
-@retry(stop_max_attempt_number=3, wait_fixed=5000)  # Retry 3 kali, setiap retry setelah 5 detik
+MAX_RETRY_ATTEMPTS = 3
+RETRY_DELAY_SECONDS = 5
+
 def query_with_retry(payload):
-    response = requests.post(API_URL, headers=headers, json=payload, timeout=30)
-    response.raise_for_status()  # Raise HTTPError for bad responses
-    return response.json()
+    for _ in range(MAX_RETRY_ATTEMPTS):
+        try:
+            response = requests.post(API_URL, headers=headers, json=payload, timeout=30)
+            response.raise_for_status()  # Raise HTTPError for bad responses
+            return response.json()
+        except requests.exceptions.HTTPError as e:
+            st.error(f"HTTP Error: {e}")
+            st.error("Model mungkin sedang memuat atau layanan tidak tersedia. Menunggu beberapa detik sebelum mencoba lagi.")
+            time.sleep(RETRY_DELAY_SECONDS)
+        except Exception as e:
+            st.error(f"Error: {e}")
+            st.error("Terjadi kesalahan saat melakukan analisis. Menunggu beberapa detik sebelum mencoba lagi.")
+            time.sleep(RETRY_DELAY_SECONDS)
+
+    st.error("Percobaan maksimum telah dicapai. Silakan coba lagi nanti.")
+    return None
 
 # Set page title and favicon
 st.set_page_config(
@@ -35,31 +47,24 @@ if st.button("Analisis"):
         st.warning("Mohon masukkan teks sebelum melakukan analisis.")
     else:
         with st.spinner("Menganalisis..."):  # Menggunakan st.spinner sebagai pengelola konteks
-            try:
-                # Melakukan analisis dengan mekanisme pengulangan dan waktu tunggu
-                result = query_with_retry({"inputs": input_text})
+            # Melakukan analisis dengan mekanisme pengulangan dan waktu tunggu
+            result = query_with_retry({"inputs": input_text})
 
-                # Memeriksa apakah hasilnya adalah list dengan setidaknya satu elemen
-                if isinstance(result, list) and result and isinstance(result[0], list):
-                    # Memeriksa apakah list dalamnya memiliki setidaknya satu kamus
-                    if result[0] and isinstance(result[0][0], dict) and "label" in result[0][0]:
-                        prediction = result[0][0]["label"]
-                        score = result[0][0]["score"]
+            # Memeriksa apakah hasilnya adalah list dengan setidaknya satu elemen
+            if isinstance(result, list) and result and isinstance(result[0], list):
+                # Memeriksa apakah list dalamnya memiliki setidaknya satu kamus
+                if result[0] and isinstance(result[0][0], dict) and "label" in result[0][0]:
+                    prediction = result[0][0]["label"]
+                    score = result[0][0]["score"]
 
-                        # Mengganti label
-                        if prediction == "LABEL_0":
-                            prediction = "Bukan Termasuk Hatespeech"
-                        elif prediction == "LABEL_1":
-                            prediction = "Termasuk Hatespeech"
+                    # Mengganti label
+                    if prediction == "LABEL_0":
+                        prediction = "Bukan Termasuk Hatespeech"
+                    elif prediction == "LABEL_1":
+                        prediction = "Termasuk Hatespeech"
 
-                        st.success(f"**Prediksi:** {prediction} dengan skor kepercayaan: {score:.4f}")
-                    else:
-                        st.error("Kesalahan: Tidak dapat mendapatkan prediksi dari model. Harap periksa respons API.")
+                    st.success(f"**Prediksi:** {prediction} dengan skor kepercayaan: {score:.4f}")
                 else:
                     st.error("Kesalahan: Tidak dapat mendapatkan prediksi dari model. Harap periksa respons API.")
-            except requests.exceptions.HTTPError as e:
-                st.error(f"Kesalahan HTTP: {e}")
-                st.error("Model mungkin sedang memuat atau layanan tidak tersedia. Silakan coba lagi nanti.")
-            except Exception as e:
-                st.error(f"Kesalahan: {e}")
-                st.error("Terjadi kesalahan saat melakukan analisis. Silakan coba lagi.")
+            else:
+                st.error("Kesalahan: Tidak dapat mendapatkan prediksi dari model. Harap periksa respons API.")
