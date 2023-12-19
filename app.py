@@ -1,3 +1,6 @@
+import subprocess
+subprocess.run(["pipenv", "install", "--deploy", "--ignore-pipfile"])
+
 import streamlit as st
 import requests
 from retrying import retry
