@@ -1,49 +1,66 @@
 import streamlit as st
-import numpy as np
-from transformers import BertTokenizer, BertForSequenceClassification
-import torch
-import os
+import requests
 
-# Gunakan st.cache_data alih-alih st.cache
-@st.cache(allow_output_mutation=True)
-def load_model():
-    tokenizer = BertTokenizer.from_pretrained('indobenchmark/indobert-base-p1')
-    model = BertForSequenceClassification.from_pretrained('sidaus/hatespeech-commentnews', st.secrets["token"])
-    return tokenizer, model
+API_URL = "https://api-inference.huggingface.co/models/sidaus/hatespeech-commentnews"
+headers = {"Authorization": st.secrets["token"]}
 
-# Fungsi untuk melakukan analisis teks
-def analyze_text(user_input, tokenizer, model):
-    test_sample = tokenizer([user_input], padding=True, truncation=True, max_length=512, return_tensors='pt')
-    output = model(**test_sample)
-    y_pred = np.argmax(output.logits.detach().numpy(), axis=1)
-    return output.logits, y_pred[0]
+def query(payload):
+    try:
+        response = requests.post(API_URL, headers=headers, json=payload)
+        response.raise_for_status()  # Membuang HTTPError untuk respon yang buruk
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        st.error(f"Kesalahan saat terhubung ke API: {e}")
+        return None
 
-def main():
-    st.title("Aplikasi Deteksi Ujaran Kebencian")
-    st.sidebar.header("Panduan Pengguna")
-    st.sidebar.markdown("1. Masukkan teks yang ingin Anda analisis.")
-    st.sidebar.markdown("2. Klik tombol 'Analisis' untuk mendapatkan prediksi.")
+# Menetapkan judul halaman dan favicon
+st.set_page_config(
+    page_title="Aplikasi Deteksi Ujaran Kebencian",
+    page_icon=":angry:",  # Anda dapat menggantinya dengan emoji pilihan Anda
+)
 
-    # Muat model menggunakan fungsi load_model
-    tokenizer, model = load_model()
+# Menambahkan header dengan judul dan deskripsi
+st.title("Aplikasi Deteksi Ujaran Kebencian")
+st.markdown(
+    "Selamat datang di Aplikasi Deteksi Ujaran Kebencian. Masukkan teks di bawah untuk menganalisis apakah mengandung ujaran kebencian atau tidak."
+)
 
-    # Input untuk analisis teks
-    user_input = st.text_area('Masukkan Teks untuk Dianalisis')
+# Area teks masukan
+input_text = st.text_area("Masukkan teks")
 
-    # Tombol Analisis
-    button = st.button("Analisis")
+# Tombol untuk memicu analisis
+if st.button("Analisis"):
+    if not input_text:
+        st.warning("Mohon masukkan teks sebelum melakukan analisis.")
+    else:
+        with st.spinner("Menganalisis..."):  # Menggunakan st.spinner sebagai pengelola konteks
+            # Melakukan analisis
+            payload = {"inputs": input_text}
+            result = query(payload)
 
-    # Kamus untuk pemetaan label prediksi
-    label_mapping = {1: 'Termasuk Ujaran Kebencian', 0: 'Bukan Termasuk Ujaran Kebencian'}
+            if result is not None:
+                # Memeriksa apakah hasilnya adalah list dengan setidaknya satu elemen
+                if isinstance(result, list) and result and isinstance(result[0], list):
+                    # Memeriksa apakah list dalamnya memiliki setidaknya satu kamus
+                    if result[0] and isinstance(result[0][0], dict) and "label" in result[0][0]:
+                        prediction = result[0][0]["label"]
+                        score = result[0][0]["score"]
 
-    # Lakukan analisis jika tombol ditekan
-    if button and user_input:
-        logits, prediction = analyze_text(user_input, tokenizer, model)
+                        # Mengganti label
+                        if prediction == "LABEL_0":
+                            prediction = "Bukan Termasuk Hatespeech"
+                        elif prediction == "LABEL_1":
+                            prediction = "Termasuk Hatespeech"
 
-        # Tampilkan logits dan label prediksi
-        st.subheader("Hasil Analisis")
-        st.write("Logits:", logits)
-        st.write("Prediksi:", label_mapping[prediction])
+                        st.success(f"**Prediksi:** {prediction} dengan skor kepercayaan: {score:.4f}")
+                    else:
+                        st.error("Kesalahan: Tidak dapat mendapatkan prediksi dari model. Harap periksa respons API.")
+                else:
+                    st.error("Kesalahan: Tidak dapat mendapatkan prediksi dari model. Harap periksa respons API.")
 
-if __name__ == "__main__":
-    main()
+# Menambahkan informasi kontak
+st.markdown(
+    """
+    *Model HF ini bersifat privat. Untuk informasi lebih lanjut atau mengakses model, hubungi [us](mailto:sidaus@proton.me)*
+    """
+)
