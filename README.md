@@ -2,6 +2,8 @@
 
 Selamat datang di Aplikasi Deteksi Ujaran Kebencian! Aplikasi ini menggunakan model NLP (Natural Language Processing) IndoBERT Base Phase 2 untuk menganalisis teks dan menentukan apakah teks tersebut mengandung ujaran kebencian atau tidak. Model ini telah dilatih menggunakan dataset komentar berita dari Kompas, yang mencakup beragam bahasa dan konteks untuk memberikan hasil yang lebih akurat.
 
+Aplikasi ini diharapkan dapat membantu dalam mendeteksi dan memitigasi ujaran kebencian dalam komentar berita. Terima kasih telah menggunakan [Aplikasi Deteksi Ujaran Kebencian](https://deteksihate-speech.streamlit.app/)!
+
 ## Cara Penggunaan
 
 1. **Masukkan Teks:** Pada aplikasi, terdapat area teks masukan. Silakan masukkan teks yang ingin Anda analisis.
