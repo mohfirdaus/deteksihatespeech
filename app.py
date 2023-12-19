@@ -1,3 +1,20 @@
+import os
+import subprocess
+import sys
+
+# Mendapatkan jalur ke direktori saat ini
+current_directory = os.path.dirname(os.path.abspath(__file__))
+
+# Menentukan jalur ke file requirements.txt
+requirements_file = os.path.join(current_directory, "requirements.txt")
+
+# Mengeksekusi perintah pip install -r requirements.txt
+try:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", requirements_file])
+except subprocess.CalledProcessError as e:
+    print(f"Error during installation: {e}")
+    sys.exit(1)
+    
 import streamlit as st
 import requests
 from retrying import retry
